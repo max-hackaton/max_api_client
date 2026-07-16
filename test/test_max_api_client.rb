@@ -30,6 +30,35 @@ class TestMaxApiClient < Minitest::Test
     assert_equal StandardError, MaxApiClient::Error.superclass
   end
 
+  def test_default_tls_store_trusts_bundled_ministry_root
+    certificate = OpenSSL::X509::Certificate.new(File.binread(MaxApiClient::Client::DEFAULT_CA_FILE))
+    store = MaxApiClient::CertificateStore.build(ca_file: MaxApiClient::Client::DEFAULT_CA_FILE)
+    verified = store.verify(certificate)
+
+    assert verified
+    assert_equal(
+      "D2:6D:2D:02:31:B7:C3:9F:92:CC:73:85:12:BA:54:10:35:19:E4:40:5D:68:B5:BD:70:3E:97:88:CA:8E:CF:31",
+      OpenSSL::Digest::SHA256.hexdigest(certificate.to_der).scan(/../).join(":").upcase
+    )
+  end
+
+  def test_ssl_verification_is_enabled_by_default
+    client = MaxApiClient::Client.new(token: "test-token")
+    http = client.send(:configured_http, URI("https://example.test"), open_timeout: nil, read_timeout: nil)
+
+    assert_equal OpenSSL::SSL::VERIFY_PEER, http.verify_mode
+    refute_nil http.cert_store
+  end
+
+  def test_ssl_verification_can_be_disabled
+    api = MaxApiClient::Api.new(token: "test-token", verify_ssl: false)
+    http = api.client.send(:configured_http, URI("https://example.test"), open_timeout: nil, read_timeout: nil)
+
+    refute api.client.verify_ssl
+    assert_equal OpenSSL::SSL::VERIFY_NONE, http.verify_mode
+    assert_nil http.cert_store
+  end
+
   def test_api_exposes_ts_parity_methods
     api, = build_api
 
@@ -52,7 +81,7 @@ class TestMaxApiClient < Minitest::Test
     api.get_subscriptions
 
     assert_equal :get, requests.first[:method]
-    assert_equal URI("https://platform-api.max.ru/subscriptions"), requests.first[:url]
+    assert_equal URI("https://platform-api2.max.ru/subscriptions"), requests.first[:url]
   end
 
   def test_subscribe_posts_subscription_body
@@ -61,7 +90,7 @@ class TestMaxApiClient < Minitest::Test
     api.subscribe("https://example.com/webhook", update_types: %w[message_created bot_started], secret: "secret")
 
     assert_equal :post, requests.first[:method]
-    assert_equal URI("https://platform-api.max.ru/subscriptions"), requests.first[:url]
+    assert_equal URI("https://platform-api2.max.ru/subscriptions"), requests.first[:url]
     assert_equal(
       { url: "https://example.com/webhook", update_types: %w[message_created bot_started], secret: "secret" },
       requests.first[:body]
@@ -74,7 +103,7 @@ class TestMaxApiClient < Minitest::Test
     api.unsubscribe("https://example.com/webhook")
 
     assert_equal :delete, requests.first[:method]
-    assert_equal URI("https://platform-api.max.ru/subscriptions?url=https%3A%2F%2Fexample.com%2Fwebhook"),
+    assert_equal URI("https://platform-api2.max.ru/subscriptions?url=https%3A%2F%2Fexample.com%2Fwebhook"),
                  requests.first[:url]
   end
 
@@ -85,7 +114,7 @@ class TestMaxApiClient < Minitest::Test
 
     assert_equal "Hello", response.dig("body", "text")
     assert_equal :post, requests.first[:method]
-    assert_equal URI("https://platform-api.max.ru/messages?chat_id=123"), requests.first[:url]
+    assert_equal URI("https://platform-api2.max.ru/messages?chat_id=123"), requests.first[:url]
     assert_equal({ text: "Hello", format: "markdown" }, requests.first[:body])
   end
 
@@ -95,8 +124,8 @@ class TestMaxApiClient < Minitest::Test
     updates = poll_updates_once(api)
 
     assert_equal [{ "update_type" => "message_created" }], updates
-    assert_equal URI("https://platform-api.max.ru/updates?types=message_created&timeout=20"), requests[0][:url]
-    assert_equal URI("https://platform-api.max.ru/updates?types=message_created&marker=10&timeout=20"),
+    assert_equal URI("https://platform-api2.max.ru/updates?types=message_created&timeout=20"), requests[0][:url]
+    assert_equal URI("https://platform-api2.max.ru/updates?types=message_created&marker=10&timeout=20"),
                  requests[1][:url]
     assert_equal 25, requests[0][:read_timeout]
     assert_equal 25, requests[1][:read_timeout]
@@ -108,7 +137,7 @@ class TestMaxApiClient < Minitest::Test
 
     api.raw.subscriptions.get_updates(types: "message_created,bot_started", marker: 42)
 
-    assert_equal URI("https://platform-api.max.ru/updates?types=message_created%2Cbot_started&marker=42"),
+    assert_equal URI("https://platform-api2.max.ru/updates?types=message_created%2Cbot_started&marker=42"),
                  requests.first[:url]
   end
 
@@ -117,7 +146,7 @@ class TestMaxApiClient < Minitest::Test
 
     api.get_chat_members(10, user_ids: [1, 2, 3], count: 50)
 
-    assert_equal URI("https://platform-api.max.ru/chats/10/members?user_ids=1%2C2%2C3&count=50"), requests.first[:url]
+    assert_equal URI("https://platform-api2.max.ru/chats/10/members?user_ids=1%2C2%2C3&count=50"), requests.first[:url]
   end
 
   def test_messages_send_retries_attachment_not_ready
@@ -175,7 +204,7 @@ class TestMaxApiClient < Minitest::Test
 
       assert_instance_of MaxApiClient::FileAttachment, attachment
       assert_equal({ type: "file", payload: { token: "upload-token" } }, attachment.to_h)
-      assert_equal URI("https://platform-api.max.ru/uploads?type=file"), requests[0][:url]
+      assert_equal URI("https://platform-api2.max.ru/uploads?type=file"), requests[0][:url]
       assert_equal URI("https://upload.example.test/files"), requests[1][:url]
       assert_equal :post, requests[1][:method]
       assert_equal "payload", requests[1][:raw_body]

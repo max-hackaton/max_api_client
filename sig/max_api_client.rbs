@@ -17,9 +17,12 @@ module MaxApiClient
 
   class Client
     DEFAULT_BASE_URL: String
+    DEFAULT_CA_FILE: String
     attr_reader token: String
     attr_reader base_url: String
-    def initialize: (token: String, ?base_url: String, ?adapter: untyped, ?open_timeout: Numeric?, ?read_timeout: Numeric?, ?logger: untyped) -> void
+    attr_reader ca_file: String?
+    attr_reader verify_ssl: bool
+    def initialize: (token: String, ?base_url: String, ?adapter: untyped, ?open_timeout: Numeric?, ?read_timeout: Numeric?, ?ca_file: String?, ?verify_ssl: bool, ?logger: untyped) -> void
     def call: (method: Symbol | String, ?path: String?, ?query: untyped, ?body: untyped, ?path_params: untyped, ?headers: untyped, ?url: String?, ?raw_body: untyped, ?parse_json: bool) -> Hash[Symbol, untyped]
   end
 
@@ -123,7 +126,7 @@ module MaxApiClient
     attr_reader raw: RawApi
     attr_reader upload: Upload
     attr_reader client: Client
-    def initialize: (token: String, ?base_url: String, ?adapter: untyped, ?open_timeout: Numeric?, ?read_timeout: Numeric?, ?logger: untyped) -> void
+    def initialize: (token: String, ?base_url: String, ?adapter: untyped, ?open_timeout: Numeric?, ?read_timeout: Numeric?, ?ca_file: String?, ?verify_ssl: bool, ?logger: untyped) -> void
     def get_my_info: () -> untyped
     def edit_my_info: (untyped extra) -> untyped
     def set_my_commands: (Array[bot_command] commands) -> untyped

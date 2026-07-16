@@ -24,6 +24,79 @@ gem "max_api_client", git: "git@github.com:Ziaw/max_api_client.git"
 bundle install
 ```
 
+## Адрес API и сертификат Минцифры
+
+По умолчанию клиент использует актуальный адрес `https://platform-api2.max.ru`.
+В gem включён корневой сертификат `Russian Trusted Root CA`, поэтому TLS-цепочка
+MAX проверяется вместе с обычным системным хранилищем доверенных сертификатов.
+По умолчанию проверка TLS включена.
+
+Актуальные сертификаты и инструкции по их системной установке опубликованы
+на Госуслугах: <https://www.gosuslugi.ru/crt>.
+
+Обычное подключение не требует дополнительных настроек:
+
+```ruby
+api = MaxApiClient::Api.new(
+  token: ENV.fetch("MAX_BOT_TOKEN")
+)
+```
+
+Доступные параметры подключения:
+
+- `base_url` — адрес MAX API, по умолчанию `https://platform-api2.max.ru`;
+- `ca_file` — путь к дополнительному доверенному CA-файлу;
+- `verify_ssl` — проверять сертификат сервера, по умолчанию `true`;
+- `open_timeout` — таймаут установления соединения;
+- `read_timeout` — таймаут чтения ответа.
+
+Эти параметры поддерживают как `MaxApiClient::Api`, так и
+`MaxApiClient::Client`.
+
+### Подключение собственного сертификата
+
+Передайте путь к актуальному сертификату Минцифры в формате PEM:
+
+```ruby
+api = MaxApiClient::Api.new(
+  token: ENV.fetch("MAX_BOT_TOKEN"),
+  ca_file: "/etc/ssl/certs/russian_trusted_root_ca.pem"
+)
+```
+
+Чтобы использовать только системное хранилище сертификатов, передайте
+`ca_file: nil`.
+
+### Игнорирование неверного сертификата
+
+Если окружение временно не может проверить сертификат, отключите проверку
+параметром `verify_ssl: false`:
+
+```ruby
+api = MaxApiClient::Api.new(
+  token: ENV.fetch("MAX_BOT_TOKEN"),
+  verify_ssl: false
+)
+```
+
+`verify_ssl: false` принимает любой серверный сертификат и делает соединение
+уязвимым для перехвата. Используйте эту настройку только как временный обходной
+вариант. Для постоянной настройки передайте актуальный сертификат через
+`ca_file` или установите его в системное хранилище.
+
+Полный пример настройки:
+
+```ruby
+api = MaxApiClient::Api.new(
+  token: ENV.fetch("MAX_BOT_TOKEN"),
+  base_url: "https://platform-api2.max.ru",
+  ca_file: MaxApiClient::Client::DEFAULT_CA_FILE,
+  verify_ssl: true,
+  open_timeout: 10,
+  read_timeout: 30
+)
+```
+
 ## Справочник API
 
 ### Методы бота

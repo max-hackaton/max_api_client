@@ -7,13 +7,15 @@ module MaxApiClient
 
     # rubocop:disable Metrics/ParameterLists
     def initialize(token:, base_url: Client::DEFAULT_BASE_URL, adapter: nil, open_timeout: nil, read_timeout: nil,
-                   logger: nil)
+                   ca_file: Client::DEFAULT_CA_FILE, verify_ssl: true, logger: nil)
       @client = Client.new(
         token:,
         base_url:,
         adapter:,
         open_timeout:,
         read_timeout:,
+        ca_file:,
+        verify_ssl:,
         logger:
       )
       @raw = RawApi.new(client)

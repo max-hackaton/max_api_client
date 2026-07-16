@@ -3,7 +3,8 @@
 module MaxApiClient
   # HTTP transport client responsible for authenticated API requests.
   class Client
-    DEFAULT_BASE_URL = "https://platform-api.max.ru"
+    DEFAULT_BASE_URL = "https://platform-api2.max.ru"
+    DEFAULT_CA_FILE = File.expand_path("../../certs/russian_trusted_root_ca.pem", __dir__)
     REQUEST_CLASSES = {
       get: Net::HTTP::Get,
       post: Net::HTTP::Post,
@@ -12,15 +13,18 @@ module MaxApiClient
       delete: Net::HTTP::Delete
     }.freeze
 
-    attr_reader :token, :base_url
+    attr_reader :token, :base_url, :ca_file, :verify_ssl
 
     # rubocop:disable Metrics/ParameterLists
-    def initialize(token:, base_url: DEFAULT_BASE_URL, adapter: nil, open_timeout: nil, read_timeout: nil, logger: nil)
+    def initialize(token:, base_url: DEFAULT_BASE_URL, adapter: nil, open_timeout: nil, read_timeout: nil,
+                   ca_file: DEFAULT_CA_FILE, verify_ssl: true, logger: nil)
       @token = token
       @base_url = base_url
       @adapter = adapter
       @open_timeout = open_timeout
       @read_timeout = read_timeout
+      @ca_file = ca_file
+      @verify_ssl = verify_ssl
       @logger = logger || MaxApiClient.logger
     end
     # rubocop:enable Metrics/ParameterLists
@@ -122,10 +126,13 @@ module MaxApiClient
     end
 
     def configured_http(uri, open_timeout:, read_timeout:)
+      open_timeout ||= @open_timeout
+      read_timeout ||= @read_timeout
+
       Net::HTTP.new(uri.host, uri.port).tap do |http|
-        http.use_ssl = uri.scheme == "https"
-        http.open_timeout = open_timeout || @open_timeout if open_timeout || @open_timeout
-        http.read_timeout = read_timeout || @read_timeout if read_timeout || @read_timeout
+        CertificateStore.configure(http, ca_file:, verify_ssl:) if uri.scheme == "https"
+        http.open_timeout = open_timeout if open_timeout
+        http.read_timeout = read_timeout if read_timeout
       end
     end
 

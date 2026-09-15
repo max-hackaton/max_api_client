@@ -40,8 +40,15 @@ module MaxApiClient
     end
     # rubocop:enable Naming/AccessorMethodName
 
+    # Compatibility for callers that edited commands through the former profile endpoint.
     def edit_my_info(**extra)
-      patch("me", body: extra)
+      return edit_my_commands(commands: extra[:commands]) if extra.keys == [:commands]
+
+      raise ArgumentError, "Bot profile editing is no longer supported; use edit_my_commands(commands: ...)"
+    end
+
+    def edit_my_commands(commands:)
+      patch("me/commands", body: { commands: })
     end
   end
 
@@ -80,7 +87,7 @@ module MaxApiClient
     end
 
     def remove_chat_member(chat_id:, user_id:, block: nil)
-      delete("chats/{chat_id}/members", path_params: { chat_id: }, body: compact_nil(user_id:, block:))
+      delete("chats/{chat_id}/members", path_params: { chat_id: }, query: compact_nil(user_id:, block:))
     end
 
     def get_pinned_message(chat_id:)
@@ -114,7 +121,7 @@ module MaxApiClient
     end
 
     def get_by_id(message_id:)
-      get("messages/{message_id}", path_params: { message_id: })
+      call_api(:get, "messages/{message_id}", path_params: { message_id: })
     end
 
     def send(chat_id: nil, user_id: nil, disable_link_preview: nil, **body)

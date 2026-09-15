@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+- Route command updates and deletion to `PATCH /me/commands`.
+- Keep command-only `edit_my_info` calls compatible; reject unsupported profile fields before HTTP requests.
+- Fix single-message lookup dispatch and allow `get_messages(message_ids: ...)` without a chat ID.
+- Send member-removal parameters in the query string, preserving explicit `false` flags.
+- Serialize array query parameters as CSV for raw API calls.
+- Preserve string-keyed image upload responses when building attachments.
+- Add API contract regression tests, update affected RBS signatures, and document deprecated endpoints and coverage gaps.
+
 ## [0.1.3] - 2026-07-16
 
 - Switched the default API endpoint to `https://platform-api2.max.ru`.

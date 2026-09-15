@@ -167,7 +167,9 @@ class TestMaxApiClient < Minitest::Test
 
     api.remove_chat_member(10, 42, block: false)
 
-    assert_equal({ user_id: 42, block: false }, requests.first[:body])
+    assert_equal :delete, requests.first[:method]
+    assert_equal URI("https://platform-api2.max.ru/chats/10/members?user_id=42&block=false"), requests.first[:url]
+    assert_nil requests.first[:body]
   end
 
   def test_pin_message_preserves_false_notify_flag

@@ -35,12 +35,12 @@ module MaxApiClient
 
     # rubocop:disable Naming/AccessorMethodName
     def set_my_commands(commands)
-      edit_my_info(commands:)
+      raw.bots.edit_my_commands(commands:)
     end
     # rubocop:enable Naming/AccessorMethodName
 
     def delete_my_commands
-      edit_my_info(commands: [])
+      set_my_commands([])
     end
 
     def get_all_chats(**extra)
@@ -107,7 +107,7 @@ module MaxApiClient
       message_from(raw.messages.send(user_id:, text:, **extra))
     end
 
-    def get_messages(chat_id, **extra)
+    def get_messages(chat_id = nil, **extra)
       raw.messages.get(chat_id:, **csv_query(extra, :message_ids))
     end
 
@@ -159,7 +159,11 @@ module MaxApiClient
 
     def upload_image(options)
       data = upload.image(**options)
-      ImageAttachment.new(token: data[:token], photos: data[:photos], url: data[:url] || data["url"])
+      ImageAttachment.new(
+        token: data[:token] || data["token"],
+        photos: data[:photos] || data["photos"],
+        url: data[:url] || data["url"]
+      )
     end
 
     def upload_video(options)

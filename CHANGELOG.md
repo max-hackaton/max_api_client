@@ -6,7 +6,7 @@
 - Send member-removal parameters in the query string, preserving explicit `false` flags.
 - Serialize array query parameters as CSV for raw API calls.
 - Preserve string-keyed image upload responses when building attachments.
-- Add API contract regression tests, update affected RBS signatures, and document deprecated endpoints and coverage gaps.
+- Add API contract regression tests.
 
 ## [0.1.3] - 2026-07-16
 

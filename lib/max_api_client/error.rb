@@ -4,6 +4,9 @@ module MaxApiClient
   # Base error type for gem-specific failures.
   class Error < StandardError; end
 
+  # Raised locally when a removed or undocumented convenience endpoint is called.
+  class UnsupportedEndpointError < Error; end
+
   # Error raised for non-successful API responses.
   class ApiError < Error
     attr_reader :status, :response

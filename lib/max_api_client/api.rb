@@ -2,6 +2,8 @@
 
 module MaxApiClient
   # High-level convenience wrapper over grouped Max Bot API endpoints.
+  # Thin endpoint delegates are kept together as the public API facade.
+  # rubocop:disable Metrics/ClassLength
   class Api
     attr_reader :raw, :upload, :client
 
@@ -67,6 +69,14 @@ module MaxApiClient
       raw.chats.get_chat_admins(chat_id:)
     end
 
+    def set_chat_admins(chat_id, admins, marker: nil)
+      raw.chats.set_chat_admins(chat_id:, admins:, marker:)
+    end
+
+    def remove_chat_admin(chat_id, user_id)
+      raw.chats.remove_chat_admin(chat_id:, user_id:)
+    end
+
     def add_chat_members(chat_id, user_ids)
       raw.chats.add_chat_members(chat_id:, user_ids:)
     end
@@ -121,6 +131,30 @@ module MaxApiClient
 
     def delete_message(message_id, **extra)
       raw.messages.delete(message_id:, **extra)
+    end
+
+    def get_video(video_token)
+      raw.videos.get_by_token(video_token:)
+    end
+
+    def get_comments(message_id, **query)
+      raw.comments.get(message_id:, **query)
+    end
+
+    def get_comment(message_id, comment_id)
+      raw.comments.get_by_id(message_id:, comment_id:)
+    end
+
+    def send_comment(message_id, text, link: nil, format: nil)
+      message_from(raw.comments.send(message_id:, text:, link:, format:))
+    end
+
+    def edit_comment(message_id, comment_id, text:, link: nil, format: nil)
+      raw.comments.edit(message_id:, comment_id:, text:, link:, format:)
+    end
+
+    def delete_comment(message_id, comment_id)
+      raw.comments.delete(message_id:, comment_id:)
     end
 
     def answer_on_callback(callback_id, **extra)
@@ -197,4 +231,5 @@ module MaxApiClient
       response.fetch("message") { response.fetch(:message) }
     end
   end
+  # rubocop:enable Metrics/ClassLength
 end

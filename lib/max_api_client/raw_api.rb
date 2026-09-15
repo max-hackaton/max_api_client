@@ -17,6 +17,14 @@ module MaxApiClient
       @messages ||= build_api(MessagesApi)
     end
 
+    def videos
+      @videos ||= build_api(VideosApi)
+    end
+
+    def comments
+      @comments ||= build_api(CommentsApi)
+    end
+
     def subscriptions
       @subscriptions ||= build_api(SubscriptionsApi)
     end
@@ -54,16 +62,19 @@ module MaxApiClient
 
   # Raw chat management endpoints.
   class ChatsApi < BaseApi
-    def get_all(**extra)
-      get("chats", query: extra)
+    # Removed by MAX in June 2026. Keep the entry point to explain migration.
+    def get_all(**_extra)
+      raise UnsupportedEndpointError,
+            "GET /chats is no longer supported; store chat_id values from webhook events"
     end
 
     def get_by_id(chat_id:)
       get("chats/{chat_id}", path_params: { chat_id: })
     end
 
-    def get_by_link(chat_link:)
-      get("chats/{chat_link}", path_params: { chat_link: })
+    def get_by_link(chat_link:) # rubocop:disable Lint/UnusedMethodArgument
+      raise UnsupportedEndpointError,
+            "Chat lookup by link is not supported; use get_by_id(chat_id: ...) with a stored numeric chat ID"
     end
 
     def edit(chat_id:, **extra)
@@ -78,7 +89,18 @@ module MaxApiClient
       get("chats/{chat_id}/members/admins", path_params: { chat_id: })
     end
 
+    def set_chat_admins(chat_id:, admins:, marker: nil)
+      post("chats/{chat_id}/members/admins", path_params: { chat_id: }, body: compact_nil(admins:, marker:))
+    end
+
+    def remove_chat_admin(chat_id:, user_id:)
+      delete("chats/{chat_id}/members/admins/{user_id}", path_params: { chat_id:, user_id: })
+    end
+
+    # Preserve the restricted endpoint without a date-dependent client-side cutoff.
     def add_chat_members(chat_id:, user_ids:)
+      warn "max_api_client: add_chat_members is deprecated; restricted since 2026-09-09, " \
+           "scheduled for removal on 2026-09-30"
       post("chats/{chat_id}/members", path_params: { chat_id: }, body: { user_ids: })
     end
 
@@ -143,6 +165,54 @@ module MaxApiClient
 
     def answer_on_callback(callback_id:, **body)
       post("answers", query: { callback_id: }, body:)
+    end
+  end
+
+  # Raw metadata endpoint for uploaded video attachments (not an upload operation).
+  class VideosApi < BaseApi
+    def get_by_token(video_token:)
+      get("videos/{video_token}", path_params: { video_token: })
+    end
+  end
+
+  # Raw channel-comment endpoints. Comments have a narrower body than messages.
+  class CommentsApi < BaseApi
+    def get(message_id:, **query)
+      call_api(:get, "messages/{message_id}/comments", path_params: { message_id: }, query:)
+    end
+
+    def get_by_id(message_id:, comment_id:)
+      call_api(:get, "messages/{message_id}/comments/{comment_id}", path_params: { message_id:, comment_id: })
+    end
+
+    def send(message_id:, text:, link: nil, format: nil)
+      post("messages/{message_id}/comments", path_params: { message_id: }, body: comment_body(text, link, format))
+    end
+
+    def edit(message_id:, comment_id:, text:, link: nil, format: nil)
+      put("messages/{message_id}/comments", path_params: { message_id: }, query: { comment_id: },
+          body: comment_body(text, link, format))
+    end
+
+    def delete(message_id:, comment_id:)
+      call_api(:delete, "messages/{message_id}/comments", path_params: { message_id: }, query: { comment_id: })
+    end
+
+    private
+
+    def comment_body(text, link, format)
+      unless link.nil? || reply_link?(link)
+        raise ArgumentError, "Comments only support reply links; forwarding is not supported"
+      end
+
+      { text: }.merge(compact_nil(link:, format:))
+    end
+
+    def reply_link?(link)
+      return false unless link.is_a?(Hash)
+
+      types = [:type, "type"].select { |key| link.key?(key) }.map { |key| link[key].to_s }
+      !types.empty? && types.all?("reply")
     end
   end
 

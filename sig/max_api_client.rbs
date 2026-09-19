@@ -2,15 +2,21 @@ module MaxApiClient
   VERSION: String
   @logger: untyped
   type bot_command = Hash[Symbol | String, untyped]
+  type chat_admin = Hash[Symbol | String, untyped]
+  type comment_link = Hash[Symbol | String, untyped]
   def self.logger: () -> untyped
   def self.logger=: (untyped logger) -> untyped
 
   class Error < StandardError
   end
 
+  class UnsupportedEndpointError < Error
+  end
+
   class ApiError < Error
     attr_reader status: Integer
     attr_reader response: untyped
+    def initialize: (Integer status, ?untyped response) -> void
     def code: () -> untyped
     def description: () -> String
   end
@@ -23,35 +29,46 @@ module MaxApiClient
     attr_reader ca_file: String?
     attr_reader verify_ssl: bool
     def initialize: (token: String, ?base_url: String, ?adapter: untyped, ?open_timeout: Numeric?, ?read_timeout: Numeric?, ?ca_file: String?, ?verify_ssl: bool, ?logger: untyped) -> void
-    def call: (method: Symbol | String, ?path: String?, ?query: untyped, ?body: untyped, ?path_params: untyped, ?headers: untyped, ?url: String?, ?raw_body: untyped, ?parse_json: bool) -> Hash[Symbol, untyped]
+    def call: (method: Symbol | String, ?path: String?, ?query: untyped, ?body: untyped, ?path_params: untyped, ?headers: untyped, ?url: String?, ?raw_body: untyped, ?parse_json: bool, ?open_timeout: Numeric?, ?read_timeout: Numeric?) -> Hash[Symbol, untyped]
   end
 
-  class RawApi
+  class BaseApi
     def initialize: (Client) -> void
-    def get: (String, ?query: untyped, ?path_params: untyped) -> untyped
-    def post: (String, ?query: untyped, ?body: untyped, ?path_params: untyped) -> untyped
-    def put: (String, ?query: untyped, ?body: untyped, ?path_params: untyped) -> untyped
-    def patch: (String, ?query: untyped, ?body: untyped, ?path_params: untyped) -> untyped
-    def delete: (String, ?query: untyped, ?body: untyped, ?path_params: untyped) -> untyped
+    def get: (String path, **untyped options) -> untyped
+    def post: (String path, **untyped options) -> untyped
+    def put: (String path, **untyped options) -> untyped
+    def patch: (String path, **untyped options) -> untyped
+    def delete: (String path, **untyped options) -> untyped
+  end
+
+  class RawApi < BaseApi
+    attr_reader client: Client
     def bots: () -> BotsApi
     def chats: () -> ChatsApi
     def messages: () -> MessagesApi
+    def videos: () -> VideosApi
+    def comments: () -> CommentsApi
     def subscriptions: () -> SubscriptionsApi
     def uploads: () -> UploadsApi
   end
 
-  class BotsApi
+  class BotsApi < BaseApi
     def get_my_info: () -> untyped
-    def edit_my_info: (untyped extra) -> untyped
+    def edit_my_info: (**untyped extra) -> untyped
+    def edit_my_commands: (commands: Array[bot_command]) -> untyped
   end
 
-  class ChatsApi
-    def get_all: (?untyped extra) -> untyped
+  class ChatsApi < BaseApi
+    # Removed endpoints retain their names but raise UnsupportedEndpointError locally.
+    def get_all: (**untyped extra) -> bot
     def get_by_id: (chat_id: Integer) -> untyped
-    def get_by_link: (chat_link: String) -> untyped
+    def get_by_link: (chat_link: String) -> bot
     def edit: (chat_id: Integer, **untyped extra) -> untyped
     def get_chat_membership: (chat_id: Integer) -> untyped
     def get_chat_admins: (chat_id: Integer) -> untyped
+    def set_chat_admins: (chat_id: Integer, admins: Array[chat_admin], ?marker: Integer?) -> untyped
+    def remove_chat_admin: (chat_id: Integer, user_id: Integer) -> untyped
+    # Restricted since 2026-09-09; scheduled removal 2026-09-30. Emits a warning.
     def add_chat_members: (chat_id: Integer, user_ids: Array[Integer]) -> untyped
     def get_chat_members: (chat_id: Integer, **untyped query) -> untyped
     def remove_chat_member: (chat_id: Integer, user_id: Integer, ?block: bool?) -> untyped
@@ -62,7 +79,7 @@ module MaxApiClient
     def leave_chat: (chat_id: Integer) -> untyped
   end
 
-  class MessagesApi
+  class MessagesApi < BaseApi
     def get: (**untyped query) -> untyped
     def get_by_id: (message_id: String) -> untyped
     def send: (?chat_id: Integer?, ?user_id: Integer?, ?disable_link_preview: bool?, **untyped body) -> untyped
@@ -71,14 +88,26 @@ module MaxApiClient
     def answer_on_callback: (callback_id: String, **untyped body) -> untyped
   end
 
-  class SubscriptionsApi
+  class VideosApi < BaseApi
+    def get_by_token: (video_token: String) -> untyped
+  end
+
+  class CommentsApi < BaseApi
+    def get: (message_id: String, **untyped query) -> untyped
+    def get_by_id: (message_id: String, comment_id: String) -> untyped
+    def send: (message_id: String, text: String?, ?link: comment_link?, ?format: String?) -> untyped
+    def edit: (message_id: String, comment_id: String, text: String?, ?link: comment_link?, ?format: String?) -> untyped
+    def delete: (message_id: String, comment_id: String) -> untyped
+  end
+
+  class SubscriptionsApi < BaseApi
     def get_subscriptions: () -> untyped
     def subscribe: (url: String, ?update_types: Array[String] | String?, ?secret: String?) -> untyped
     def unsubscribe: (url: String) -> untyped
-    def get_updates: (?limit: Integer?, ?timeout: Integer?, ?marker: Integer?, ?types: String?, ?read_timeout: Numeric?) -> untyped
+    def get_updates: (?read_timeout: Numeric?, **untyped query) -> untyped
   end
 
-  class UploadsApi
+  class UploadsApi < BaseApi
     def get_upload_url: (type: String | Symbol) -> untyped
   end
 
@@ -86,25 +115,42 @@ module MaxApiClient
     def to_h: () -> Hash[Symbol, untyped]
   end
 
-  class ImageAttachment < Attachment
+  class MediaAttachment < Attachment
+    attr_reader token: String?
+    def initialize: (?token: String?) -> void
+    def payload: () -> Hash[Symbol, untyped]
   end
 
-  class VideoAttachment < Attachment
+  class ImageAttachment < MediaAttachment
+    attr_reader photos: untyped
+    attr_reader url: String?
+    def initialize: (?token: String?, ?photos: untyped, ?url: String?) -> void
   end
 
-  class AudioAttachment < Attachment
+  class VideoAttachment < MediaAttachment
   end
 
-  class FileAttachment < Attachment
+  class AudioAttachment < MediaAttachment
+  end
+
+  class FileAttachment < MediaAttachment
   end
 
   class StickerAttachment < Attachment
+    attr_reader code: String
+    def initialize: (code: String) -> void
   end
 
   class LocationAttachment < Attachment
+    attr_reader longitude: Numeric
+    attr_reader latitude: Numeric
+    def initialize: (lon: Numeric, lat: Numeric) -> void
   end
 
   class ShareAttachment < Attachment
+    attr_reader url: String?
+    attr_reader token: String?
+    def initialize: (?url: String?, ?token: String?) -> void
   end
 
   class Upload
@@ -117,7 +163,7 @@ module MaxApiClient
     READ_TIMEOUT_PADDING: Integer
     def initialize: (Api api, ?types: Array[String] | String, ?marker: Integer?, ?timeout: Integer, ?retry_interval: Integer, ?read_timeout: Numeric?) -> void
     def each: () { (untyped update) -> void } -> self
-    def each: () -> Enumerator[untyped, self]
+            | () -> Enumerator[untyped, self]
     def stop: () -> bool
     def stopped?: () -> bool
   end
@@ -128,35 +174,43 @@ module MaxApiClient
     attr_reader client: Client
     def initialize: (token: String, ?base_url: String, ?adapter: untyped, ?open_timeout: Numeric?, ?read_timeout: Numeric?, ?ca_file: String?, ?verify_ssl: bool, ?logger: untyped) -> void
     def get_my_info: () -> untyped
-    def edit_my_info: (untyped extra) -> untyped
+    def edit_my_info: (**untyped extra) -> untyped
     def set_my_commands: (Array[bot_command] commands) -> untyped
     def delete_my_commands: () -> untyped
-    def get_all_chats: (?untyped extra) -> untyped
+    def get_all_chats: (**untyped extra) -> bot
     def get_chat: (Integer chat_id) -> untyped
-    def get_chat_by_link: (String chat_link) -> untyped
-    def edit_chat_info: (Integer chat_id, untyped extra) -> untyped
+    def get_chat_by_link: (String chat_link) -> bot
+    def edit_chat_info: (Integer chat_id, **untyped extra) -> untyped
     def get_chat_membership: (Integer chat_id) -> untyped
     def get_chat_admins: (Integer chat_id) -> untyped
+    def set_chat_admins: (Integer chat_id, Array[chat_admin] admins, ?marker: Integer?) -> untyped
+    def remove_chat_admin: (Integer chat_id, Integer user_id) -> untyped
     def add_chat_members: (Integer chat_id, Array[Integer] user_ids) -> untyped
-    def get_chat_members: (Integer chat_id, ?untyped extra) -> untyped
+    def get_chat_members: (Integer chat_id, **untyped extra) -> untyped
     def remove_chat_member: (Integer chat_id, Integer user_id, ?block: bool?) -> untyped
     def get_pinned_message: (Integer chat_id) -> untyped
-    def pin_message: (Integer chat_id, String message_id, ?untyped extra) -> untyped
+    def pin_message: (Integer chat_id, String message_id, **untyped extra) -> untyped
     def unpin_message: (Integer chat_id) -> untyped
     def send_action: (Integer chat_id, String | Symbol action) -> untyped
     def leave_chat: (Integer chat_id) -> untyped
-    def send_message_to_chat: (Integer chat_id, String text, ?untyped extra) -> untyped
-    def send_message_to_user: (Integer user_id, String text, ?untyped extra) -> untyped
-    def get_messages: (Integer chat_id, ?untyped extra) -> untyped
+    def send_message_to_chat: (Integer chat_id, String? text, **untyped extra) -> untyped
+    def send_message_to_user: (Integer user_id, String? text, **untyped extra) -> untyped
+    def get_messages: (?Integer? chat_id, **untyped extra) -> untyped
     def get_message: (String message_id) -> untyped
-    def edit_message: (String message_id, ?untyped extra) -> untyped
-    def delete_message: (String message_id, ?untyped extra) -> untyped
-    def answer_on_callback: (String callback_id, ?untyped extra) -> untyped
+    def edit_message: (String message_id, **untyped extra) -> untyped
+    def delete_message: (String message_id, **untyped extra) -> untyped
+    def get_video: (String video_token) -> untyped
+    def get_comments: (String message_id, **untyped query) -> untyped
+    def get_comment: (String message_id, String comment_id) -> untyped
+    def send_comment: (String message_id, String? text, ?link: comment_link?, ?format: String?) -> untyped
+    def edit_comment: (String message_id, String comment_id, text: String?, ?link: comment_link?, ?format: String?) -> untyped
+    def delete_comment: (String message_id, String comment_id) -> untyped
+    def answer_on_callback: (String callback_id, **untyped extra) -> untyped
     def get_subscriptions: () -> untyped
     def subscribe: (String url, ?update_types: Array[String] | String?, ?secret: String?) -> untyped
     def unsubscribe: (String url) -> untyped
     def poll_updates: (?Array[String] | String types, ?marker: Integer?, ?timeout: Integer, ?retry_interval: Integer, ?read_timeout: Numeric?) { (untyped update) -> void } -> Polling
-    def poll_updates: (?Array[String] | String types, ?marker: Integer?, ?timeout: Integer, ?retry_interval: Integer, ?read_timeout: Numeric?) -> Enumerator[untyped, Polling]
+                    | (?Array[String] | String types, ?marker: Integer?, ?timeout: Integer, ?retry_interval: Integer, ?read_timeout: Numeric?) -> Enumerator[untyped, Polling]
     def upload_image: (Hash[Symbol, untyped] options) -> ImageAttachment
     def upload_video: (Hash[Symbol, untyped] options) -> VideoAttachment
     def upload_audio: (Hash[Symbol, untyped] options) -> AudioAttachment

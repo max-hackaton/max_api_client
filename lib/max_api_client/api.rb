@@ -2,6 +2,8 @@
 
 module MaxApiClient
   # High-level convenience wrapper over grouped Max Bot API endpoints.
+  # Thin endpoint delegates are kept together as the public API facade.
+  # rubocop:disable Metrics/ClassLength
   class Api
     attr_reader :raw, :upload, :client
 
@@ -35,12 +37,12 @@ module MaxApiClient
 
     # rubocop:disable Naming/AccessorMethodName
     def set_my_commands(commands)
-      edit_my_info(commands:)
+      raw.bots.edit_my_commands(commands:)
     end
     # rubocop:enable Naming/AccessorMethodName
 
     def delete_my_commands
-      edit_my_info(commands: [])
+      set_my_commands([])
     end
 
     def get_all_chats(**extra)
@@ -65,6 +67,14 @@ module MaxApiClient
 
     def get_chat_admins(chat_id)
       raw.chats.get_chat_admins(chat_id:)
+    end
+
+    def set_chat_admins(chat_id, admins, marker: nil)
+      raw.chats.set_chat_admins(chat_id:, admins:, marker:)
+    end
+
+    def remove_chat_admin(chat_id, user_id)
+      raw.chats.remove_chat_admin(chat_id:, user_id:)
     end
 
     def add_chat_members(chat_id, user_ids)
@@ -107,7 +117,7 @@ module MaxApiClient
       message_from(raw.messages.send(user_id:, text:, **extra))
     end
 
-    def get_messages(chat_id, **extra)
+    def get_messages(chat_id = nil, **extra)
       raw.messages.get(chat_id:, **csv_query(extra, :message_ids))
     end
 
@@ -121,6 +131,30 @@ module MaxApiClient
 
     def delete_message(message_id, **extra)
       raw.messages.delete(message_id:, **extra)
+    end
+
+    def get_video(video_token)
+      raw.videos.get_by_token(video_token:)
+    end
+
+    def get_comments(message_id, **query)
+      raw.comments.get(message_id:, **query)
+    end
+
+    def get_comment(message_id, comment_id)
+      raw.comments.get_by_id(message_id:, comment_id:)
+    end
+
+    def send_comment(message_id, text, link: nil, format: nil)
+      message_from(raw.comments.send(message_id:, text:, link:, format:))
+    end
+
+    def edit_comment(message_id, comment_id, text:, link: nil, format: nil)
+      raw.comments.edit(message_id:, comment_id:, text:, link:, format:)
+    end
+
+    def delete_comment(message_id, comment_id)
+      raw.comments.delete(message_id:, comment_id:)
     end
 
     def answer_on_callback(callback_id, **extra)
@@ -159,7 +193,11 @@ module MaxApiClient
 
     def upload_image(options)
       data = upload.image(**options)
-      ImageAttachment.new(token: data[:token], photos: data[:photos], url: data[:url] || data["url"])
+      ImageAttachment.new(
+        token: data[:token] || data["token"],
+        photos: data[:photos] || data["photos"],
+        url: data[:url] || data["url"]
+      )
     end
 
     def upload_video(options)
@@ -193,4 +231,5 @@ module MaxApiClient
       response.fetch("message") { response.fetch(:message) }
     end
   end
+  # rubocop:enable Metrics/ClassLength
 end

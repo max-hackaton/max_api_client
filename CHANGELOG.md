@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+- Send `answer_on_callback`'s `disable_link_preview` option in the query string instead of the JSON body.
+- Support the optional `disable_link_preview` query parameter when sending comments, preserving explicit `false` values.
+- Refresh the contract reference to official OpenAPI 0.0.33, document preferred `after`/`before` message filters, and remove obsolete PR-branch installation instructions.
 - Route command updates and deletion to `PATCH /me/commands`.
 - Keep command-only `edit_my_info` calls compatible; reject unsupported profile fields before HTTP requests.
 - Fix single-message lookup dispatch and allow `get_messages(message_ids: ...)` without a chat ID.

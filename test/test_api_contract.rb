@@ -106,6 +106,49 @@ class TestApiContract < Minitest::Test
                    body: { text: "Hello", notify: false }
   end
 
+  def test_callback_answer_places_preview_flag_in_query
+    result = { "success" => false, "message" => "Not editable" }
+    api, requests = build_api(result)
+    message = { text: "https://example.com", notify: false }
+
+    response = api.answer_on_callback("callback+id", disable_link_preview: true, message:, notification: "Done")
+
+    assert_equal result, response
+    assert_request requests.first, :post, "/answers?callback_id=callback%2Bid&disable_link_preview=true",
+                   body: { message:, notification: "Done" }
+  end
+
+  def test_raw_callback_answer_preserves_false_preview_flag
+    api, requests = build_api
+
+    api.raw.messages.answer_on_callback(callback_id: "callback", disable_link_preview: false, message: nil)
+
+    assert_request requests.first, :post, "/answers?callback_id=callback&disable_link_preview=false",
+                   body: { message: nil }
+  end
+
+  def test_callback_answer_omits_unset_preview_flag
+    api, requests = build_api
+
+    api.answer_on_callback("callback", notification: "Done")
+
+    assert_request requests.first, :post, "/answers?callback_id=callback", body: { notification: "Done" }
+  end
+
+  def test_callback_answer_omits_nil_preview_flag_from_json_http_request
+    api, requests = build_api
+    api.answer_on_callback("callback", disable_link_preview: nil, notification: "Done")
+    request = requests.first
+
+    http = build_http_request(api, request)
+
+    assert_equal "POST", http.method
+    assert_equal "/answers?callback_id=callback", http.path
+    assert_equal "test-token", http["Authorization"]
+    assert_equal "application/json", http["Content-Type"]
+    assert_equal({ "notification" => "Done" }, JSON.parse(http.body))
+  end
+
   def test_raw_messages_serialize_arrays_as_csv_without_mutating_input
     api, requests = build_api
     message_ids = %w[mid.1 mid.2].freeze
@@ -179,7 +222,7 @@ class TestApiContract < Minitest::Test
 
     assert_equal({ type: "image", payload: { token: "image-token" } }, attachment.to_h)
     assert_equal "image", requests.first[:query][:type]
-    assert_match(/multipart\/form-data/, requests.last[:headers]["Content-Type"])
+    assert_match(%r{multipart/form-data}, requests.last[:headers]["Content-Type"])
   end
 
   def test_upload_image_preserves_photos_from_parsed_json
@@ -203,7 +246,7 @@ class TestApiContract < Minitest::Test
     api.delete_my_commands
     request = requests.first
 
-    http_request = api.client.send(:build_http_request, request, request.fetch(:url))
+    http_request = build_http_request(api, request)
 
     assert_equal "PATCH", http_request.method
     assert_equal "/me/commands", http_request.path
@@ -217,7 +260,7 @@ class TestApiContract < Minitest::Test
     api.remove_chat_member(10, 42, block: false)
     request = requests.first
 
-    http_request = api.client.send(:build_http_request, request, request.fetch(:url))
+    http_request = build_http_request(api, request)
 
     assert_equal "DELETE", http_request.method
     assert_equal "/chats/10/members?user_id=42&block=false", http_request.path
@@ -226,6 +269,10 @@ class TestApiContract < Minitest::Test
   end
 
   private
+
+  def build_http_request(api, request)
+    api.client.send(:build_http_request, request, request.fetch(:url))
+  end
 
   def build_api(data = {}, status: 200)
     requests = []

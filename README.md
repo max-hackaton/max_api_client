@@ -3,7 +3,7 @@
 Ruby gem для работы с MAX Bot API. Высокоуровневый `MaxApiClient::Api`,
 группированный `api.raw`, загрузка медиа, объекты вложений и Long Polling.
 Контракт сверяется с [max-docs](https://github.com/max-hackaton/max-docs/tree/main/bot-api)
-и [документацией MAX](https://dev.max.ru/docs-api). Последняя проверка: **15 сентября 2026**.
+Последняя проверка: **26 сентября 2026**.
 
 ## Установка
 
@@ -15,9 +15,6 @@ gem "max_api_client", git: "https://github.com/max-hackaton/max_api_client.git"
 ```bash
 bundle install
 ```
-
-До merge исправления доступны только в PR-ветке; для её проверки добавьте
-`branch: "fix/bot-api-contract-2026-09-15"` к зависимости из Git.
 
 ## Подключение и TLS
 
@@ -127,16 +124,26 @@ Raw-эквиваленты: `api.raw.chats.set_chat_admins(chat_id:, admins:, ma
 ```ruby
 api.send_message_to_chat(-123, "Привет", format: "markdown", notify: false)
 api.send_message_to_user(42, "Привет", disable_link_preview: false)
-api.get_messages(-123, count: 25)
+api.get_messages(-123, after: 0, before: 1_800_000_000_000, count: 25)
 api.get_messages(message_ids: %w[mid.first mid.second])
 api.get_message("mid.first")
 api.edit_message("mid.first", text: "Обновлено")
 api.delete_message("mid.first")
 api.answer_on_callback("callback-id", notification: "Готово")
+api.answer_on_callback("callback-id", message: { text: "Обновлено" }, disable_link_preview: true)
 
 video = api.get_video("video-token")
 # Raw: api.raw.videos.get_by_token(video_token: "video-token")
 ```
+
+`get_messages` принимает `after` и `before` для фильтрации по времени в миллисекундах
+Unix timestamp. В текущей схеме они заменяют устаревшие `from` и `to`; прежние
+параметры по-прежнему принимаются для совместимости.
+
+`answer_on_callback(callback_id, disable_link_preview: nil, **extra)` передаёт
+`disable_link_preview` в query `POST /answers`, а `message` и `notification` в JSON body.
+Значения `true` и `false` сохраняются; при `nil` параметр не отправляется.
+Raw-вызов: `api.raw.messages.answer_on_callback(callback_id:, disable_link_preview: nil, **body)`.
 
 `get_video` вызывает `GET /videos/{videoToken}` и возвращает полный объект: токен,
 URL воспроизведения, миниатюру, размеры и длительность. `urls` и `thumbnail` могут
@@ -147,7 +154,8 @@ raw-методы — полный ответ API. Поддерживаются r
 Существующий повтор отправки при `attachment.not.ready` сохранён; политика повторов
 в этом изменении не пересматривалась.
 
-Источник: [Информация о видео](https://dev.max.ru/docs-api/methods/GET/videos/-videoToken-).
+Источники: [OpenAPI-схема](https://github.com/max-messenger/api-schema/blob/main/schema.yaml),
+[информация о видео](https://dev.max.ru/docs-api/methods/GET/videos/-videoToken-).
 
 ## Комментарии к постам каналов
 
@@ -165,7 +173,7 @@ api.delete_comment("mid.post", "mid.comment")
 | --- | --- | --- |
 | `get_comments(message_id, **query)` | `raw.comments.get(message_id:, **query)` | `GET /messages/{messageId}/comments` |
 | `get_comment(message_id, comment_id)` | `raw.comments.get_by_id(message_id:, comment_id:)` | `GET /messages/{messageId}/comments/{commentId}` |
-| `send_comment(message_id, text, link: nil, format: nil)` | `raw.comments.send(message_id:, text:, link: nil, format: nil)` | `POST /messages/{messageId}/comments` |
+| `send_comment(message_id, text, link: nil, format: nil, disable_link_preview: nil)` | `raw.comments.send(message_id:, text:, link: nil, format: nil, disable_link_preview: nil)` | `POST /messages/{messageId}/comments` |
 | `edit_comment(message_id, comment_id, text:, link: nil, format: nil)` | `raw.comments.edit(message_id:, comment_id:, text:, link: nil, format: nil)` | `PUT /messages/{messageId}/comments?comment_id=...` |
 | `delete_comment(message_id, comment_id)` | `raw.comments.delete(message_id:, comment_id:)` | `DELETE /messages/{messageId}/comments?comment_id=...` |
 
@@ -174,6 +182,10 @@ api.delete_comment("mid.post", "mid.comment")
 без собственной автоматической пагинации. `send_comment` извлекает объект `message`,
 как отправка обычного сообщения; raw-отправка сохраняет оболочку `{ message: ... }`.
 Получение одного комментария возвращает сам комментарий, изменение и удаление — результат операции.
+
+По официальной OpenAPI-схеме отправка комментария также принимает query-параметр
+`disable_link_preview`. Передайте его в `send_comment` или `raw.comments.send`:
+клиент сохраняет `true` и `false`, пропускает `nil` и не добавляет параметр в JSON body.
 
 Тело `NewCommentBody` содержит только `text`, `link`, `format`. Текст допускает `nil`
 и ограничен API 4000 символами. Формат — `markdown` или `html`; гиперссылки и упоминания
@@ -190,7 +202,8 @@ api.delete_comment("mid.post", "mid.comment")
 [отправка](https://dev.max.ru/docs-api/methods/POST/messages/-messageId-/comments),
 [редактирование](https://dev.max.ru/docs-api/methods/PUT/messages/-messageId-/comments),
 [удаление](https://dev.max.ru/docs-api/methods/DELETE/messages/-messageId-/comments),
-[NewCommentBody](https://dev.max.ru/docs-api/objects/NewCommentBody).
+[NewCommentBody](https://dev.max.ru/docs-api/objects/NewCommentBody),
+[OpenAPI-схема](https://github.com/max-messenger/api-schema/blob/main/schema.yaml).
 
 ## Подписки и Long Polling
 
@@ -273,7 +286,8 @@ ruby -Ilib:test -e 'Dir["test/test_*.rb"].sort.each { |file| require_relative fi
 
 Публикация идёт через GitHub Releases и GitHub Actions. Перед релизом обновите
 `lib/max_api_client/version.rb`, перенесите Unreleased в версионный раздел `CHANGELOG.md`
-и после ревью включите изменения в `master`. Этот PR не меняет версию gem и не публикует релиз.
+и после ревью включите изменения в `master`. Текущие изменения ещё не опубликованы
+в новой версии gem.
 
 ## Источники и лицензия
 

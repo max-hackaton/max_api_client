@@ -145,8 +145,8 @@ module MaxApiClient
       raw.comments.get_by_id(message_id:, comment_id:)
     end
 
-    def send_comment(message_id, text, link: nil, format: nil)
-      message_from(raw.comments.send(message_id:, text:, link:, format:))
+    def send_comment(message_id, text, link: nil, format: nil, disable_link_preview: nil)
+      message_from(raw.comments.send(message_id:, text:, link:, format:, disable_link_preview:))
     end
 
     def edit_comment(message_id, comment_id, text:, link: nil, format: nil)
@@ -157,8 +157,8 @@ module MaxApiClient
       raw.comments.delete(message_id:, comment_id:)
     end
 
-    def answer_on_callback(callback_id, **extra)
-      raw.messages.answer_on_callback(callback_id:, **extra)
+    def answer_on_callback(callback_id, disable_link_preview: nil, **extra)
+      raw.messages.answer_on_callback(callback_id:, disable_link_preview:, **extra)
     end
 
     # rubocop:disable Naming/AccessorMethodName

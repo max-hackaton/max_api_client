@@ -7,11 +7,12 @@ require "test_helper"
 class TestExtendedApi < Minitest::Test
   def test_new_raw_groups_are_memoized
     api, = build_api
+    raw = api.raw
 
-    assert_instance_of MaxApiClient::VideosApi, api.raw.videos
-    assert_instance_of MaxApiClient::CommentsApi, api.raw.comments
-    assert_same api.raw.videos, api.raw.videos
-    assert_same api.raw.comments, api.raw.comments
+    assert_instance_of MaxApiClient::VideosApi, raw.videos
+    assert_instance_of MaxApiClient::CommentsApi, raw.comments
+    assert_same raw.videos, raw.videos
+    assert_same raw.comments, raw.comments
   end
 
   def test_set_chat_admins_sends_json_and_preserves_zero_marker
@@ -136,6 +137,44 @@ class TestExtendedApi < Minitest::Test
     assert_equal({ body: { mid: "mid.comment" } }, api.send_comment("mid.post", "Hello"))
   end
 
+  def test_send_comment_places_preview_flag_in_query
+    comment = { "body" => { "mid" => "mid.comment", "text" => "Hello" } }
+    api, requests = build_api({ "message" => comment })
+
+    response = api.send_comment("mid.post", "Hello", disable_link_preview: true)
+
+    assert_equal comment, response
+    assert_request requests.first, :post, "/messages/mid.post/comments?disable_link_preview=true",
+                   body: { text: "Hello" }
+  end
+
+  def test_raw_send_comment_preserves_false_preview_flag_and_reply_body
+    result = { "message" => { "body" => { "mid" => "mid.comment" } } }
+    api, requests = build_api(result)
+    link = { type: "reply", mid: "mid.parent" }.freeze
+
+    response = api.raw.comments.send(message_id: "mid.post", text: "Reply", link:, format: "html",
+                                     disable_link_preview: false)
+
+    assert_equal result, response
+    assert_request requests.first, :post, "/messages/mid.post/comments?disable_link_preview=false",
+                   body: { text: "Reply", link:, format: "html" }
+  end
+
+  def test_send_comment_omits_nil_preview_flag_from_json_http_request
+    api, requests = build_api({ "message" => {} })
+    api.send_comment("mid.post", "Hello", disable_link_preview: nil)
+    request = requests.first
+
+    http = build_http_request(api, request)
+
+    assert_equal "POST", http.method
+    assert_equal "/messages/mid.post/comments", http.path
+    assert_equal "test-token", http["Authorization"]
+    assert_equal "application/json", http["Content-Type"]
+    assert_equal({ "text" => "Hello" }, JSON.parse(http.body))
+  end
+
   def test_edit_comment_places_comment_id_in_query_not_body
     api, requests = build_api({ "success" => true })
     link = { type: "reply", mid: "mid.parent" }.freeze
@@ -253,7 +292,7 @@ class TestExtendedApi < Minitest::Test
     api.edit_comment("mid.post", "mid.comment", text: "Updated")
     request = requests.first
 
-    http = api.client.send(:build_http_request, request, request.fetch(:url))
+    http = build_http_request(api, request)
 
     assert_equal "PUT", http.method
     assert_equal "/messages/mid.post/comments?comment_id=mid.comment", http.path
@@ -267,7 +306,7 @@ class TestExtendedApi < Minitest::Test
     api.delete_comment("mid.post", "mid.comment")
     request = requests.first
 
-    http = api.client.send(:build_http_request, request, request.fetch(:url))
+    http = build_http_request(api, request)
 
     assert_equal "DELETE", http.method
     assert_equal "/messages/mid.post/comments?comment_id=mid.comment", http.path
@@ -277,15 +316,8 @@ class TestExtendedApi < Minitest::Test
 
   def test_new_endpoints_preserve_api_error_handling
     api, = build_api({ "code" => "access.denied", "message" => "Denied" }, status: 403)
-    operations = [
-      -> { api.set_chat_admins(10, []) }, -> { api.remove_chat_admin(10, 42) },
-      -> { api.get_video("video-token") }, -> { api.get_comments("mid.post") },
-      -> { api.get_comment("mid.post", "mid.comment") }, -> { api.send_comment("mid.post", "Hello") },
-      -> { api.edit_comment("mid.post", "mid.comment", text: "Updated") },
-      -> { api.delete_comment("mid.post", "mid.comment") }
-    ]
 
-    operations.each do |operation|
+    extended_api_operations(api).each do |operation|
       error = assert_raises(MaxApiClient::ApiError, &operation)
       assert_equal 403, error.status
       assert_equal "access.denied", error.code
@@ -360,6 +392,20 @@ class TestExtendedApi < Minitest::Test
   end
 
   private
+
+  def build_http_request(api, request)
+    api.client.send(:build_http_request, request, request.fetch(:url))
+  end
+
+  def extended_api_operations(api)
+    [
+      -> { api.set_chat_admins(10, []) }, -> { api.remove_chat_admin(10, 42) },
+      -> { api.get_video("video-token") }, -> { api.get_comments("mid.post") },
+      -> { api.get_comment("mid.post", "mid.comment") }, -> { api.send_comment("mid.post", "Hello") },
+      -> { api.edit_comment("mid.post", "mid.comment", text: "Updated") },
+      -> { api.delete_comment("mid.post", "mid.comment") }
+    ]
+  end
 
   def build_api(data = {}, status: 200)
     requests = []

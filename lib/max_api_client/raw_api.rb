@@ -163,8 +163,8 @@ module MaxApiClient
       super("messages", query: { message_id: })
     end
 
-    def answer_on_callback(callback_id:, **body)
-      post("answers", query: { callback_id: }, body:)
+    def answer_on_callback(callback_id:, disable_link_preview: nil, **body)
+      post("answers", query: compact_nil(callback_id:, disable_link_preview:), body:)
     end
   end
 
@@ -185,13 +185,14 @@ module MaxApiClient
       call_api(:get, "messages/{message_id}/comments/{comment_id}", path_params: { message_id:, comment_id: })
     end
 
-    def send(message_id:, text:, link: nil, format: nil)
-      post("messages/{message_id}/comments", path_params: { message_id: }, body: comment_body(text, link, format))
+    def send(message_id:, text:, link: nil, format: nil, disable_link_preview: nil)
+      post("messages/{message_id}/comments", path_params: { message_id: }, query: compact_nil(disable_link_preview:),
+                                             body: comment_body(text, link, format))
     end
 
     def edit(message_id:, comment_id:, text:, link: nil, format: nil)
       put("messages/{message_id}/comments", path_params: { message_id: }, query: { comment_id: },
-          body: comment_body(text, link, format))
+                                            body: comment_body(text, link, format))
     end
 
     def delete(message_id:, comment_id:)

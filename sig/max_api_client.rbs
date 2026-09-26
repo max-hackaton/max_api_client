@@ -85,7 +85,7 @@ module MaxApiClient
     def send: (?chat_id: Integer?, ?user_id: Integer?, ?disable_link_preview: bool?, **untyped body) -> untyped
     def edit: (message_id: String, **untyped body) -> untyped
     def delete: (message_id: String) -> untyped
-    def answer_on_callback: (callback_id: String, **untyped body) -> untyped
+    def answer_on_callback: (callback_id: String, ?disable_link_preview: bool?, **untyped body) -> untyped
   end
 
   class VideosApi < BaseApi
@@ -95,7 +95,7 @@ module MaxApiClient
   class CommentsApi < BaseApi
     def get: (message_id: String, **untyped query) -> untyped
     def get_by_id: (message_id: String, comment_id: String) -> untyped
-    def send: (message_id: String, text: String?, ?link: comment_link?, ?format: String?) -> untyped
+    def send: (message_id: String, text: String?, ?link: comment_link?, ?format: String?, ?disable_link_preview: bool?) -> untyped
     def edit: (message_id: String, comment_id: String, text: String?, ?link: comment_link?, ?format: String?) -> untyped
     def delete: (message_id: String, comment_id: String) -> untyped
   end
@@ -202,10 +202,10 @@ module MaxApiClient
     def get_video: (String video_token) -> untyped
     def get_comments: (String message_id, **untyped query) -> untyped
     def get_comment: (String message_id, String comment_id) -> untyped
-    def send_comment: (String message_id, String? text, ?link: comment_link?, ?format: String?) -> untyped
+    def send_comment: (String message_id, String? text, ?link: comment_link?, ?format: String?, ?disable_link_preview: bool?) -> untyped
     def edit_comment: (String message_id, String comment_id, text: String?, ?link: comment_link?, ?format: String?) -> untyped
     def delete_comment: (String message_id, String comment_id) -> untyped
-    def answer_on_callback: (String callback_id, **untyped extra) -> untyped
+    def answer_on_callback: (String callback_id, ?disable_link_preview: bool?, **untyped extra) -> untyped
     def get_subscriptions: () -> untyped
     def subscribe: (String url, ?update_types: Array[String] | String?, ?secret: String?) -> untyped
     def unsubscribe: (String url) -> untyped
